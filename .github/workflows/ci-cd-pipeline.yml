@@ -1,0 +1,73 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies for main service
+        run: npm ci
+
+      - name: Install dependencies for analytics service
+        working-directory: ./analytics-service
+        run: npm ci
+
+      # Add test steps when tests are implemented
+      # - name: Run tests for main service
+      #   run: npm test
+      
+      # - name: Run tests for analytics service
+      #   working-directory: ./analytics-service
+      #   run: npm test
+
+  build-and-push:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push main service
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/isonga-app:latest
+
+      - name: Build and push analytics service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./analytics-service
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/isonga-analytics:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Deploy to production
+        run: |
+          echo "Add deployment steps here"
+          # Add actual deployment steps based on your hosting platform
+          # For example: Deploy to AWS, Digital Ocean, or other cloud providers
