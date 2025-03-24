@@ -1,0 +1,74 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_REGISTRY = 'your-registry'
+        BACKEND_IMAGE = '${DOCKER_REGISTRY}/isonga-backend'
+        NOTIFICATION_IMAGE = '${DOCKER_REGISTRY}/isonga-notification'
+        KUBECONFIG = credentials('kubeconfig')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Backend') {
+            steps {
+                dir('backend') {
+                    sh 'docker build -t ${BACKEND_IMAGE}:${BUILD_NUMBER} .'
+                }
+            }
+        }
+
+        stage('Build Notification Service') {
+            steps {
+                dir('microservice') {
+                    sh 'docker build -t ${NOTIFICATION_IMAGE}:${BUILD_NUMBER} .'
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            parallel {
+                stage('Backend Tests') {
+                    steps {
+                        dir('backend') {
+                            sh 'npm install'
+                            sh 'npm test'
+                        }
+                    }
+                }
+                stage('Microservice Tests') {
+                    steps {
+                        dir('microservice') {
+                            sh 'npm install'
+                            sh 'npm test'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Push Images') {
+            steps {
+                sh 'docker push ${BACKEND_IMAGE}:${BUILD_NUMBER}'
+                sh 'docker push ${NOTIFICATION_IMAGE}:${BUILD_NUMBER}'
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh 'kubectl apply -f k8s/'
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
